@@ -1,0 +1,4 @@
+output: internal/mocks
+outpkg: mocks
+with-expecter: True
+all: True
