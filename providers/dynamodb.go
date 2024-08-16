@@ -1,4 +1,4 @@
-package dynalock
+package providers
 
 import (
 	"context"
