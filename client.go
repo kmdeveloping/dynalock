@@ -13,6 +13,10 @@ const (
 	defaultPartitionKeyName = "key"
 )
 
+var (
+	defaultOwnerName = uuid.NewString()
+)
+
 type Client struct {
 	TableName        string
 	OwnerName        string
@@ -29,16 +33,23 @@ func NewDynalockClient(dynamoDb providers.DynamoDbProvider, tableName string, op
 
 	client := &Client{
 		TableName:        tableName,
-		OwnerName:        uuid.NewString(),
-		DynamoDB:         dynamoDb,
+		OwnerName:        defaultOwnerName,
 		PartitionKeyName: defaultPartitionKeyName,
+		DynamoDB:         dynamoDb,
 	}
 
 	for _, opt := range opts {
 		opt(client)
 	}
 
-	client.Lock = lock.NewLockManager(dynamoDb, tableName, client.Encryption)
+	lockManagerOptions := lock.LockManagerOptions{
+		PartitionKeyName: client.PartitionKeyName,
+		TableName:        client.TableName,
+		OwnerName:        client.OwnerName,
+		WithEncryption:   client.Encryption,
+	}
+
+	client.Lock = lock.NewLockManager(dynamoDb, lockManagerOptions)
 
 	return client
 }
@@ -54,4 +65,20 @@ func (c *Client) CreateTable(ctx context.Context, tableName string, opts ...mode
 	}
 
 	return c.Lock.CreateLockTable(ctx, createTableOptions)
+}
+
+func (c *Client) AquireLock(ctx context.Context, key string, opts ...models.AcquireLockOption) (*models.Lock, error) {
+	if err := c.Lock.CanAcquireLock(ctx, key); err != nil {
+		return nil, err
+	}
+
+	acquireLockOptions := &models.AcquireLockOptions{
+		PartitionKey: key,
+	}
+
+	for _, opt := range opts {
+		opt(acquireLockOptions)
+	}
+
+	return c.Lock.AcquireLock(ctx, key, acquireLockOptions)
 }
