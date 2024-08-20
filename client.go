@@ -30,7 +30,6 @@ type Client struct {
 type ClientOption func(*Client)
 
 func NewDynalockClient(dynamoDb providers.DynamoDbProvider, tableName string, opts ...ClientOption) *Client {
-
 	client := &Client{
 		TableName:        tableName,
 		OwnerName:        defaultOwnerName,
@@ -47,6 +46,7 @@ func NewDynalockClient(dynamoDb providers.DynamoDbProvider, tableName string, op
 		TableName:        client.TableName,
 		OwnerName:        client.OwnerName,
 		WithEncryption:   client.Encryption,
+		EncryptionKey:    client.EncryptionKey,
 	}
 
 	client.Lock = lock.NewLockManager(dynamoDb, lockManagerOptions)
@@ -67,7 +67,7 @@ func (c *Client) CreateTable(ctx context.Context, tableName string, opts ...mode
 	return c.Lock.CreateLockTable(ctx, createTableOptions)
 }
 
-func (c *Client) AquireLock(ctx context.Context, key string, opts ...models.AcquireLockOption) (*models.Lock, error) {
+func (c *Client) AcquireLock(ctx context.Context, key string, opts ...models.AcquireLockOption) (*models.Lock, error) {
 	if err := c.Lock.CanAcquireLock(ctx, key); err != nil {
 		return nil, err
 	}
@@ -80,5 +80,5 @@ func (c *Client) AquireLock(ctx context.Context, key string, opts ...models.Acqu
 		opt(acquireLockOptions)
 	}
 
-	return c.Lock.AcquireLock(ctx, key, acquireLockOptions)
+	return c.Lock.AcquireLock(ctx, acquireLockOptions)
 }

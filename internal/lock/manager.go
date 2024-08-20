@@ -3,24 +3,29 @@ package lock
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/kmdeveloping/dynalock/internal/models"
 	"github.com/kmdeveloping/dynalock/providers"
+	"github.com/kmdeveloping/encrypticon"
 	"log"
+	"time"
 )
 
 type LockManager struct {
-	WithEncryption   bool
-	partitionKeyName string
-	tableName        string
-	ownerName        string
-	dynamoClient     providers.DynamoDbProvider
+	WithEncryption    bool
+	partitionKeyName  string
+	tableName         string
+	ownerName         string
+	encryptionManager *encrypticon.EncryptManager
+	dynamoClient      providers.DynamoDbProvider
 }
 
 type LockManagerOptions struct {
 	WithEncryption   bool
+	EncryptionKey    string
 	PartitionKeyName string
 	TableName        string
 	OwnerName        string
@@ -28,11 +33,12 @@ type LockManagerOptions struct {
 
 func NewLockManager(dc providers.DynamoDbProvider, opts LockManagerOptions) *LockManager {
 	return &LockManager{
-		WithEncryption:   opts.WithEncryption,
-		partitionKeyName: opts.PartitionKeyName,
-		tableName:        opts.TableName,
-		ownerName:        opts.OwnerName,
-		dynamoClient:     dc,
+		WithEncryption:    opts.WithEncryption,
+		encryptionManager: encrypticon.NewEncryptManager(opts.EncryptionKey),
+		partitionKeyName:  opts.PartitionKeyName,
+		tableName:         opts.TableName,
+		ownerName:         opts.OwnerName,
+		dynamoClient:      dc,
 	}
 }
 
@@ -98,9 +104,111 @@ func (lm *LockManager) CanAcquireLock(ctx context.Context, key string) error {
 
 	return nil
 }
-func (lm *LockManager) AcquireLock(ctx context.Context, key string, opt *models.AcquireLockOptions) (*models.Lock, error) {
-	return nil, nil
+func (lm *LockManager) AcquireLock(ctx context.Context, opt *models.AcquireLockOptions) (*models.Lock, error) {
+	lockOptions := models.Lock{
+		PartitionKey:    opt.PartitionKey,
+		Owner:           lm.ownerName,
+		Timestamp:       time.Now().Unix(),
+		Ttl:             30 * 24 * 60 * 60,
+		DeleteOnRelease: opt.DeleteOnRelease,
+		IsReleased:      false,
+		Data:            opt.Data,
+	}
+
+	if lm.WithEncryption {
+		encryptedString := lm.encryptionManager.Encrypt(string(opt.Data))
+		lockOptions.Data = []byte(encryptedString)
+	}
+
+	item, err := lm.marshalLockItem(lockOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &dynamodb.PutItemInput{
+		TableName: aws.String(lm.tableName),
+		Item:      item,
+	}
+
+	_, err = lm.dynamoClient.PutItem(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &lockOptions, nil
 }
 func (lm *LockManager) ReleaseLock(ctx context.Context, key string) (bool, error) {
-	return false, nil
+	getInput := &dynamodb.GetItemInput{
+		TableName: aws.String(lm.tableName),
+		Key: map[string]types.AttributeValue{
+			lm.partitionKeyName: &types.AttributeValueMemberS{Value: key},
+		},
+	}
+
+	getOutput, err := lm.dynamoClient.GetItem(ctx, getInput)
+	if err != nil {
+		return false, err
+	}
+
+	if getOutput.Item == nil {
+		return true, errors.New(fmt.Sprintf("no lock found for %s", key))
+	}
+
+	lockItem, err := lm.unmarshalLockItem(getOutput.Item)
+	if err != nil {
+		return false, err
+	}
+
+	if !lockItem.DeleteOnRelease {
+		updateInput := &dynamodb.UpdateItemInput{
+			TableName: aws.String(lm.tableName),
+			Key: map[string]types.AttributeValue{
+				lm.partitionKeyName: &types.AttributeValueMemberS{Value: key},
+			},
+			UpdateExpression: aws.String("SET #ts = :timestamp, isReleased = :isReleased"),
+			ExpressionAttributeNames: map[string]string{
+				"#ts":    attrTimestamp,
+				"#owner": attrOwnerName,
+			},
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":owner":      &types.AttributeValueMemberS{Value: lm.ownerName},
+				":timestamp":  &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", time.Now().Unix())},
+				":isReleased": &types.AttributeValueMemberBOOL{Value: true},
+			},
+			ConditionExpression: aws.String("#owner = :owner"),
+		}
+
+		_, err = lm.dynamoClient.UpdateItem(ctx, updateInput)
+		if err != nil {
+			return false, fmt.Errorf("failed to update lock: %v", err)
+		}
+
+		return true, nil
+	}
+
+	return lm.deleteLockOnRelease(ctx, key)
+}
+
+func (lm *LockManager) deleteLockOnRelease(ctx context.Context, key string) (bool, error) {
+	deleteInput := &dynamodb.DeleteItemInput{
+		TableName: aws.String(lm.tableName),
+		Key: map[string]types.AttributeValue{
+			lm.partitionKeyName: &types.AttributeValueMemberS{Value: key},
+		},
+		ExpressionAttributeNames: map[string]string{
+			"#owner": attrOwnerName,
+		},
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":owner":  &types.AttributeValueMemberS{Value: lm.ownerName},
+			":delete": &types.AttributeValueMemberBOOL{Value: true},
+		},
+		ConditionExpression: aws.String("#owner = :owner and deleteOnRelease = :delete"),
+	}
+
+	_, err := lm.dynamoClient.DeleteItem(ctx, deleteInput)
+	if err != nil {
+		return false, fmt.Errorf("failed to delete lock: %v", err)
+	}
+
+	return true, nil
 }

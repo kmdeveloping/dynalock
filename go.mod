@@ -14,5 +14,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
+	github.com/kmdeveloping/encrypticon v0.1.7 // indirect
 	github.com/stretchr/testify v1.9.0 // indirect
 )
