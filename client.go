@@ -28,6 +28,7 @@ type Client struct {
 }
 
 type ClientOption func(*Client)
+type EncryptedClientOption func(*Client)
 
 func NewDynalockClient(dynamoDb providers.DynamoDbProvider, tableName string, opts ...ClientOption) *Client {
 	client := &Client{
@@ -46,11 +47,36 @@ func NewDynalockClient(dynamoDb providers.DynamoDbProvider, tableName string, op
 		TableName:        client.TableName,
 		OwnerName:        client.OwnerName,
 		WithEncryption:   client.Encryption,
-		EncryptionKey:    client.EncryptionKey,
 	}
 
 	client.Lock = lock.NewLockManager(dynamoDb, lockManagerOptions)
 
+	return client
+}
+
+func NewDynalockClientWithEncryption(dynamoDb providers.DynamoDbProvider, tableName string, opts ...EncryptedClientOption) *Client {
+	client := &Client{
+		TableName:        tableName,
+		OwnerName:        defaultOwnerName,
+		PartitionKeyName: defaultPartitionKeyName,
+		DynamoDB:         dynamoDb,
+	}
+
+	for _, opt := range opts {
+		opt(client)
+	}
+
+	lockManagerOptions := lock.LockManagerOptionsWithEncryption{
+		LockManagerOptions: lock.LockManagerOptions{
+			WithEncryption:   client.Encryption,
+			PartitionKeyName: client.PartitionKeyName,
+			TableName:        client.TableName,
+			OwnerName:        client.OwnerName,
+		},
+		EncryptionKey: client.EncryptionKey,
+	}
+
+	client.Lock = lock.NewLockManagerWithEncryption(dynamoDb, lockManagerOptions)
 	return client
 }
 

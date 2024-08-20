@@ -15,7 +15,7 @@ import (
 )
 
 type LockManager struct {
-	WithEncryption    bool
+	withEncryption    bool
 	partitionKeyName  string
 	tableName         string
 	ownerName         string
@@ -25,15 +25,29 @@ type LockManager struct {
 
 type LockManagerOptions struct {
 	WithEncryption   bool
-	EncryptionKey    string
 	PartitionKeyName string
 	TableName        string
 	OwnerName        string
 }
 
+type LockManagerOptionsWithEncryption struct {
+	LockManagerOptions
+	EncryptionKey string
+}
+
 func NewLockManager(dc providers.DynamoDbProvider, opts LockManagerOptions) *LockManager {
 	return &LockManager{
-		WithEncryption:    opts.WithEncryption,
+		withEncryption:   opts.WithEncryption,
+		partitionKeyName: opts.PartitionKeyName,
+		tableName:        opts.TableName,
+		ownerName:        opts.OwnerName,
+		dynamoClient:     dc,
+	}
+}
+
+func NewLockManagerWithEncryption(dc providers.DynamoDbProvider, opts LockManagerOptionsWithEncryption) *LockManager {
+	return &LockManager{
+		withEncryption:    opts.WithEncryption,
 		encryptionManager: encrypticon.NewEncryptManager(opts.EncryptionKey),
 		partitionKeyName:  opts.PartitionKeyName,
 		tableName:         opts.TableName,
@@ -115,7 +129,7 @@ func (lm *LockManager) AcquireLock(ctx context.Context, opt *models.AcquireLockO
 		Data:            opt.Data,
 	}
 
-	if lm.WithEncryption {
+	if lm.withEncryption {
 		encryptedString := lm.encryptionManager.Encrypt(string(opt.Data))
 		lockOptions.Data = []byte(encryptedString)
 	}

@@ -17,7 +17,7 @@ func WithLockOwnerName(name string) ClientOption {
 	}
 }
 
-func WithDataEncryption(key string) ClientOption {
+func WithDataEncryption(key string) EncryptedClientOption {
 	return func(client *Client) {
 		client.EncryptionKey = key
 		client.Encryption = true
