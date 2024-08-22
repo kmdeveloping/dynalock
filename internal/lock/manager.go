@@ -35,6 +35,8 @@ type LockManagerOptionsWithEncryption struct {
 	EncryptionKey string
 }
 
+var _ LockManagerProvider = (*LockManager)(nil)
+
 func NewLockManager(dc providers.DynamoDbProvider, opts LockManagerOptions) *LockManager {
 	return &LockManager{
 		withEncryption:   opts.WithEncryption,
