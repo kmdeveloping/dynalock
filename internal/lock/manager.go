@@ -8,7 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/kmdeveloping/dynalock/internal/models"
-	"github.com/kmdeveloping/dynalock/providers"
+	. "github.com/kmdeveloping/dynalock/providers"
 	"github.com/kmdeveloping/encrypticon"
 	"log"
 	"time"
@@ -20,7 +20,7 @@ type LockManager struct {
 	tableName         string
 	ownerName         string
 	encryptionManager *encrypticon.EncryptManager
-	dynamoClient      providers.DynamoDbProvider
+	dynamoClient      DynamoDbProvider
 }
 
 type LockManagerOptions struct {
@@ -37,7 +37,7 @@ type LockManagerOptionsWithEncryption struct {
 
 var _ LockManagerProvider = (*LockManager)(nil)
 
-func NewLockManager(dc providers.DynamoDbProvider, opts LockManagerOptions) *LockManager {
+func NewLockManager(dc DynamoDbProvider, opts LockManagerOptions) *LockManager {
 	return &LockManager{
 		withEncryption:   opts.WithEncryption,
 		partitionKeyName: opts.PartitionKeyName,
@@ -47,7 +47,7 @@ func NewLockManager(dc providers.DynamoDbProvider, opts LockManagerOptions) *Loc
 	}
 }
 
-func NewLockManagerWithEncryption(dc providers.DynamoDbProvider, opts LockManagerOptionsWithEncryption) *LockManager {
+func NewLockManagerWithEncryption(dc DynamoDbProvider, opts LockManagerOptionsWithEncryption) *LockManager {
 	return &LockManager{
 		withEncryption:    opts.WithEncryption,
 		encryptionManager: encrypticon.NewEncryptManager(opts.EncryptionKey),
