@@ -108,3 +108,5 @@ func (c *Client) AcquireLock(ctx context.Context, key string, opts ...models.Acq
 
 	return c.Lock.AcquireLock(ctx, acquireLockOptions)
 }
+
+// todo release lock and get lock still needed
