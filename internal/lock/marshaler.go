@@ -63,3 +63,7 @@ func (lm *LockManager) unmarshalListLocks(items []map[string]types.AttributeValu
 
 	return result, nil
 }
+
+func (lm *LockManager) isDeleteOnRelease(item map[string]types.AttributeValue) (bool, error) {
+	return item[attrDeleteOnRelease].(*types.AttributeValueMemberBOOL).Value, nil
+}

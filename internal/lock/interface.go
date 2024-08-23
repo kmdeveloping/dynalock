@@ -11,4 +11,5 @@ type LockManagerProvider interface {
 	CanAcquireLock(ctx context.Context, key string) error
 	AcquireLock(ctx context.Context, opt *models.AcquireLockOptions) (*models.Lock, error)
 	ReleaseLock(ctx context.Context, key string) (bool, error)
+	GetLock(ctx context.Context, key string) (*models.Lock, error)
 }
