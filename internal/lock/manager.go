@@ -105,6 +105,10 @@ func (lm *LockManager) CanAcquireLock(ctx context.Context, key string) error {
 		return err
 	}
 
+	if q.Items == nil {
+		return nil
+	}
+
 	var locks []models.Lock
 	locks, err = lm.unmarshalListLocks(q.Items)
 	if err != nil {
@@ -121,7 +125,7 @@ func (lm *LockManager) CanAcquireLock(ctx context.Context, key string) error {
 	return nil
 }
 func (lm *LockManager) AcquireLock(ctx context.Context, opt *models.AcquireLockOptions) (*models.Lock, error) {
-	lockOptions := models.Lock{
+	lock := models.Lock{
 		PartitionKey:    opt.PartitionKey,
 		Owner:           lm.ownerName,
 		Timestamp:       time.Now().Unix(),
@@ -133,10 +137,10 @@ func (lm *LockManager) AcquireLock(ctx context.Context, opt *models.AcquireLockO
 
 	if lm.withEncryption {
 		encryptedString := lm.encryptionManager.Encrypt(string(opt.Data))
-		lockOptions.Data = []byte(encryptedString)
+		lock.Data = []byte(encryptedString)
 	}
 
-	item, err := lm.marshalLockItem(lockOptions)
+	item, err := lm.marshalLockItem(lock)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +155,7 @@ func (lm *LockManager) AcquireLock(ctx context.Context, opt *models.AcquireLockO
 		return nil, err
 	}
 
-	return &lockOptions, nil
+	return &lock, nil
 }
 func (lm *LockManager) ReleaseLock(ctx context.Context, key string) (bool, error) {
 	getInput := &dynamodb.GetItemInput{
