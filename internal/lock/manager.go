@@ -110,7 +110,7 @@ func (lm *LockManager) CanAcquireLock(ctx context.Context, key string) error {
 	}
 
 	var locks []models.Lock
-	locks, err = lm.unmarshalListLocks(q.Items)
+	err = lm.unmarshalListLocks(q.Items, &locks)
 	if err != nil {
 		log.Printf("failed to unmarshal locks: %v", err)
 		return err
@@ -140,8 +140,8 @@ func (lm *LockManager) AcquireLock(ctx context.Context, opt *models.AcquireLockO
 		lock.Data = []byte(encryptedString)
 	}
 
-	item, err := lm.marshalLockItem(lock)
-	if err != nil {
+	var item map[string]types.AttributeValue
+	if err := lm.marshalLockItem(lock, &item); err != nil {
 		return nil, err
 	}
 
@@ -150,7 +150,7 @@ func (lm *LockManager) AcquireLock(ctx context.Context, opt *models.AcquireLockO
 		Item:      item,
 	}
 
-	_, err = lm.dynamoClient.PutItem(ctx, req)
+	_, err := lm.dynamoClient.PutItem(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -158,24 +158,7 @@ func (lm *LockManager) AcquireLock(ctx context.Context, opt *models.AcquireLockO
 	return &lock, nil
 }
 func (lm *LockManager) ReleaseLock(ctx context.Context, key string) (bool, error) {
-
-	getInput := &dynamodb.GetItemInput{
-		TableName: aws.String(lm.tableName),
-		Key: map[string]types.AttributeValue{
-			lm.partitionKeyName: &types.AttributeValueMemberS{Value: key},
-		},
-	}
-
-	getOutput, err := lm.dynamoClient.GetItem(ctx, getInput)
-	if err != nil {
-		return false, err
-	}
-
-	if getOutput.Item == nil {
-		return true, nil
-	}
-
-	deleteOnRelease, err := lm.isDeleteOnRelease(getOutput.Item)
+	deleteOnRelease, err := lm.isDeleteOnRelease(ctx, key)
 	if err != nil {
 		return false, err
 	}
@@ -227,17 +210,17 @@ func (lm *LockManager) GetLock(ctx context.Context, key string) (*models.Lock, e
 		return nil, nil
 	}
 
-	lockItem, err := lm.unmarshalLockItem(getOutput.Item)
-	if err != nil {
+	var lock models.Lock
+	if err = lm.unmarshalLockItem(getOutput.Item, &lock); err != nil {
 		return nil, err
 	}
 
 	if lm.withEncryption {
-		decryptedString := lm.encryptionManager.Decrypt(string(lockItem.Data))
-		lockItem.Data = []byte(decryptedString)
+		decryptedString := lm.encryptionManager.Decrypt(string(lock.Data))
+		lock.Data = []byte(decryptedString)
 	}
 
-	return &lockItem, nil
+	return &lock, nil
 }
 
 func (lm *LockManager) deleteLockOnRelease(ctx context.Context, key string) (bool, error) {
@@ -262,4 +245,24 @@ func (lm *LockManager) deleteLockOnRelease(ctx context.Context, key string) (boo
 	}
 
 	return true, nil
+}
+
+func (lm *LockManager) isDeleteOnRelease(ctx context.Context, key string) (bool, error) {
+	getInput := &dynamodb.GetItemInput{
+		TableName: aws.String(lm.tableName),
+		Key: map[string]types.AttributeValue{
+			lm.partitionKeyName: &types.AttributeValueMemberS{Value: key},
+		},
+	}
+
+	getOutput, err := lm.dynamoClient.GetItem(ctx, getInput)
+	if err != nil {
+		return false, err
+	}
+
+	if getOutput.Item == nil {
+		return false, nil
+	}
+
+	return getOutput.Item[attrDeleteOnRelease].(*types.AttributeValueMemberBOOL).Value, nil
 }

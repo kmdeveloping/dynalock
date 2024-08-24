@@ -190,6 +190,65 @@ func (_c *LockManagerProvider_CreateLockTable_Call) RunAndReturn(run func(contex
 	return _c
 }
 
+// GetLock provides a mock function with given fields: ctx, key
+func (_m *LockManagerProvider) GetLock(ctx context.Context, key string) (*models.Lock, error) {
+	ret := _m.Called(ctx, key)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetLock")
+	}
+
+	var r0 *models.Lock
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*models.Lock, error)); ok {
+		return rf(ctx, key)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *models.Lock); ok {
+		r0 = rf(ctx, key)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.Lock)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, key)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// LockManagerProvider_GetLock_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetLock'
+type LockManagerProvider_GetLock_Call struct {
+	*mock.Call
+}
+
+// GetLock is a helper method to define mock.On call
+//   - ctx context.Context
+//   - key string
+func (_e *LockManagerProvider_Expecter) GetLock(ctx interface{}, key interface{}) *LockManagerProvider_GetLock_Call {
+	return &LockManagerProvider_GetLock_Call{Call: _e.mock.On("GetLock", ctx, key)}
+}
+
+func (_c *LockManagerProvider_GetLock_Call) Run(run func(ctx context.Context, key string)) *LockManagerProvider_GetLock_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *LockManagerProvider_GetLock_Call) Return(_a0 *models.Lock, _a1 error) *LockManagerProvider_GetLock_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *LockManagerProvider_GetLock_Call) RunAndReturn(run func(context.Context, string) (*models.Lock, error)) *LockManagerProvider_GetLock_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ReleaseLock provides a mock function with given fields: ctx, key
 func (_m *LockManagerProvider) ReleaseLock(ctx context.Context, key string) (bool, error) {
 	ret := _m.Called(ctx, key)

@@ -17,8 +17,8 @@ const (
 	attrDeleteOnRelease = "deleteOnRelease"
 )
 
-func (lm *LockManager) marshalLockItem(item models.Lock) (map[string]types.AttributeValue, error) {
-	av := map[string]types.AttributeValue{
+func (lm *LockManager) marshalLockItem(item models.Lock, output *map[string]types.AttributeValue) error {
+	*output = map[string]types.AttributeValue{
 		lm.partitionKeyName: &types.AttributeValueMemberS{Value: item.PartitionKey},
 		attrOwnerName:       &types.AttributeValueMemberS{Value: item.Owner},
 		attrTimestamp:       &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", item.Timestamp)},
@@ -28,14 +28,14 @@ func (lm *LockManager) marshalLockItem(item models.Lock) (map[string]types.Attri
 		attrData:            &types.AttributeValueMemberS{Value: string(item.Data)},
 	}
 
-	return av, nil
+	return nil
 }
 
-func (lm *LockManager) unmarshalLockItem(item map[string]types.AttributeValue) (models.Lock, error) {
+func (lm *LockManager) unmarshalLockItem(item map[string]types.AttributeValue, output *models.Lock) error {
 	timestamp, _ := strconv.ParseInt(item[attrTimestamp].(*types.AttributeValueMemberN).Value, 10, 64)
 	expTime, _ := strconv.ParseInt(item[attrExpirationTime].(*types.AttributeValueMemberN).Value, 10, 64)
 
-	result := models.Lock{
+	*output = models.Lock{
 		PartitionKey:    item[lm.partitionKeyName].(*types.AttributeValueMemberS).Value,
 		Owner:           item[attrOwnerName].(*types.AttributeValueMemberS).Value,
 		DeleteOnRelease: item[attrDeleteOnRelease].(*types.AttributeValueMemberBOOL).Value,
@@ -45,25 +45,20 @@ func (lm *LockManager) unmarshalLockItem(item map[string]types.AttributeValue) (
 		Ttl:             expTime,
 	}
 
-	return result, nil
+	return nil
 }
 
-func (lm *LockManager) unmarshalListLocks(items []map[string]types.AttributeValue) ([]models.Lock, error) {
-	var result []models.Lock
-
+func (lm *LockManager) unmarshalListLocks(items []map[string]types.AttributeValue, output *[]models.Lock) error {
 	for _, item := range items {
-		lock, err := lm.unmarshalLockItem(item)
+		lock := models.Lock{}
+		err := lm.unmarshalLockItem(item, &lock)
 		if err != nil {
 			log.Printf("failed to unmarshal lock item: %v", err)
 			continue
 		}
 
-		result = append(result, lock)
+		*output = append(*output, lock)
 	}
 
-	return result, nil
-}
-
-func (lm *LockManager) isDeleteOnRelease(item map[string]types.AttributeValue) (bool, error) {
-	return item[attrDeleteOnRelease].(*types.AttributeValueMemberBOOL).Value, nil
+	return nil
 }
