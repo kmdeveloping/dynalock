@@ -113,4 +113,6 @@ func (c *Client) GetLock(ctx context.Context, key string) (*models.Lock, error) 
 	return c.Lock.GetLock(ctx, key)
 }
 
-// todo release lock and get lock still needed
+func (c *Client) ReleaseLock(ctx context.Context, key string) (bool, error) {
+	return c.Lock.ReleaseLock(ctx, key)
+}

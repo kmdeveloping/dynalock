@@ -10,6 +10,7 @@ import (
 	"github.com/kmdeveloping/dynalock/internal/models"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
+	"log"
 	"testing"
 	"time"
 )
@@ -146,15 +147,6 @@ func (suite *lock_manager_UnitTestSuite) Test_AcquireLockWithEncryption_Success(
 func (suite *lock_manager_UnitTestSuite) Test_ReleaseLock_NotDeleteOnRelease_Success() {
 	suite.setupMocks()
 	output := &dynamodb.GetItemOutput{
-		ConsumedCapacity: &types.ConsumedCapacity{
-			CapacityUnits:          nil,
-			GlobalSecondaryIndexes: nil,
-			LocalSecondaryIndexes:  nil,
-			ReadCapacityUnits:      nil,
-			Table:                  nil,
-			TableName:              nil,
-			WriteCapacityUnits:     nil,
-		},
 		Item: suite.getAttributeValueMap(suite.defaultLockOwner)[0],
 	}
 	suite.mockDynamoDb.EXPECT().
@@ -175,15 +167,6 @@ func (suite *lock_manager_UnitTestSuite) Test_ReleaseLock_DeleteOnRelease_Succes
 	suite.deleteOnReleaseOption = true
 	suite.setupMocks()
 	output := &dynamodb.GetItemOutput{
-		ConsumedCapacity: &types.ConsumedCapacity{
-			CapacityUnits:          nil,
-			GlobalSecondaryIndexes: nil,
-			LocalSecondaryIndexes:  nil,
-			ReadCapacityUnits:      nil,
-			Table:                  nil,
-			TableName:              nil,
-			WriteCapacityUnits:     nil,
-		},
 		Item: suite.getAttributeValueMap(suite.defaultLockOwner)[0],
 	}
 	suite.mockDynamoDb.EXPECT().
@@ -218,6 +201,36 @@ func (suite *lock_manager_UnitTestSuite) Test_CreateTable() {
 	}
 
 	result, err := suite.lockManager.CreateLockTable(suite.mockContext, tableOptions)
+	suite.Nil(err)
+	suite.NotNil(result)
+}
+
+func (suite *lock_manager_UnitTestSuite) Test_GetLock_Success() {
+	suite.setupMocks()
+	suite.mockDynamoDb.EXPECT().
+		GetItem(suite.mockContext, mock.Anything).
+		Return(&dynamodb.GetItemOutput{Item: suite.getAttributeValueMap(suite.defaultLockOwner)[0]}, nil).
+		Once()
+
+	result, err := suite.lockManager.GetLock(suite.mockContext, suite.defaultLockOwner)
+
+	log.Printf("%+v", result)
+	suite.Nil(err)
+	suite.NotNil(result)
+}
+
+func (suite *lock_manager_UnitTestSuite) Test_GetLockWithEncryption_Success() {
+	suite.useEncryptionLockManager = true
+	suite.setupMocks()
+	suite.mockDynamoDb.EXPECT().
+		GetItem(suite.mockContext, mock.Anything).
+		Return(&dynamodb.GetItemOutput{Item: suite.getAttributeValueMap(suite.defaultLockOwner)[0]}, nil).
+		Once()
+	suite.useEncryptionLockManager = false
+
+	result, err := suite.lockManager.GetLock(suite.mockContext, suite.defaultLockOwner)
+
+	log.Printf("%+v", result)
 	suite.Nil(err)
 	suite.NotNil(result)
 }
