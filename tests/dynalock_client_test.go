@@ -60,17 +60,8 @@ func (suite *dynalock_client_UnitTestSuite) Test_AcquireLock_Success() {
 
 func (suite *dynalock_client_UnitTestSuite) Test_AcquireLock_NotReleased_Fail() {
 	key := "mock:key_data"
-	items := []map[string]types.AttributeValue{
-		{
-			"key":             &types.AttributeValueMemberS{Value: key},
-			"owner":           &types.AttributeValueMemberS{Value: "ima_different_owner"},
-			"timestamp":       &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", time.Now().Unix())},
-			"ttl":             &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", 30*24*60*60)},
-			"isReleased":      &types.AttributeValueMemberBOOL{Value: false},
-			"deleteOnRelease": &types.AttributeValueMemberBOOL{Value: false},
-			"data":            &types.AttributeValueMemberS{Value: `{"key":"value"}`},
-		},
-	}
+	owner := "ima_different_owner"
+	items := suite.buildMockLockData(key, owner)
 
 	suite.setupMocks()
 	suite.mockDynamoDb.EXPECT().
@@ -81,4 +72,33 @@ func (suite *dynalock_client_UnitTestSuite) Test_AcquireLock_NotReleased_Fail() 
 	lock, err := suite.client.AcquireLock(suite.mockContext, key)
 	suite.Nil(lock)
 	suite.Error(err)
+}
+
+func (suite *dynalock_client_UnitTestSuite) Test_GetLock_Success() {
+	key := "test_key"
+	owner := suite.defaultOwnerName
+	items := suite.buildMockLockData(key, owner)
+	suite.setupMocks()
+	suite.mockDynamoDb.EXPECT().
+		GetItem(suite.mockContext, mock.Anything).
+		Return(&dynamodb.GetItemOutput{Item: items[0]}, nil).
+		Once()
+
+	lock, err := suite.client.GetLock(suite.mockContext, key)
+	suite.NoError(err)
+	suite.Equal(lock.Owner, owner)
+}
+
+func (suite *dynalock_client_UnitTestSuite) buildMockLockData(key string, owner string) []map[string]types.AttributeValue {
+	return []map[string]types.AttributeValue{
+		{
+			"key":             &types.AttributeValueMemberS{Value: key},
+			"owner":           &types.AttributeValueMemberS{Value: owner},
+			"timestamp":       &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", time.Now().Unix())},
+			"ttl":             &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", 30*24*60*60)},
+			"isReleased":      &types.AttributeValueMemberBOOL{Value: false},
+			"deleteOnRelease": &types.AttributeValueMemberBOOL{Value: false},
+			"data":            &types.AttributeValueMemberS{Value: `{"key":"value"}`},
+		},
+	}
 }

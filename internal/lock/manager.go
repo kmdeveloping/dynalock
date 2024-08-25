@@ -215,7 +215,8 @@ func (lm *LockManager) GetLock(ctx context.Context, key string) (*models.Lock, e
 		return nil, err
 	}
 
-	if lm.withEncryption {
+	// return decrypted data ONLY if the lock owner is the current client
+	if lm.withEncryption && lm.ownerName == lock.Owner {
 		decryptedString := lm.encryptionManager.Decrypt(string(lock.Data))
 		lock.Data = []byte(decryptedString)
 	}
